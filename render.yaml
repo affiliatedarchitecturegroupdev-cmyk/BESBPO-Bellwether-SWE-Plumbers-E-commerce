@@ -1,7 +1,7 @@
 databases:
   - name: bellwetherswe-db
     plan: starter
-    region: frankfurt # closest Render region to South Africa at time of writing — revisit if Render adds an af region
+    region: frankfurt
     postgresMajorVersion: "16"
 
 services:
@@ -9,15 +9,14 @@ services:
     name: bellwetherswe-redis
     plan: starter
     region: frankfurt
-    ipAllowList: [] # internal-only access
+    ipAllowList: []
 
   - type: web
     name: bellwetherswe-api
     runtime: node
     region: frankfurt
-    rootDir: apps/api
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npx prisma migrate deploy && npm run start
+    buildCommand: npm install && npx prisma generate --schema=apps/api/prisma/schema.prisma && npm run build --workspace=apps/api
+    startCommand: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma && npm run start --workspace=apps/api
     healthCheckPath: /v1/health
     envVars:
       - key: DATABASE_URL
@@ -32,7 +31,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: KEYCLOAK_ISSUER_URL
-        sync: false # set manually — points at the existing central Besbpo ID instance
+        sync: false
       - key: KEYCLOAK_JWKS_URI
         sync: false
       - key: KEYCLOAK_AUDIENCE
@@ -75,9 +74,8 @@ services:
     name: bellwetherswe-web
     runtime: node
     region: frankfurt
-    rootDir: apps/web
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
+    buildCommand: npm install && npm run build --workspace=apps/web
+    startCommand: npm run start --workspace=apps/web
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://bellwetherswe-api.onrender.com
@@ -96,9 +94,8 @@ services:
     name: bellwetherswe-ai
     runtime: python
     region: frankfurt
-    rootDir: apps/ai-service
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r apps/ai-service/requirements.txt
+    startCommand: cd apps/ai-service && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -116,8 +113,6 @@ services:
         value: production
       - key: ANTHROPIC_API_KEY
         sync: false
-    # Not added to any public custom domain — reached only by bellwetherswe-api
-    # over Render's private network via AI_SERVICE_URL above.
 
   # Runs src/worker.ts — a minimal application context (no HTTP, no
   # controllers), processing the BullMQ notifications queue. See
@@ -128,9 +123,8 @@ services:
     name: bellwetherswe-worker
     runtime: node
     region: frankfurt
-    rootDir: apps/api
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: node dist/worker.js
+    buildCommand: npm install && npx prisma generate --schema=apps/api/prisma/schema.prisma && npm run build --workspace=apps/api
+    startCommand: node apps/api/dist/worker.js
     envVars:
       - key: REDIS_URL
         fromService:

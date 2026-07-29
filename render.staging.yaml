@@ -45,9 +45,8 @@ services:
     name: bellwetherswe-api-staging
     runtime: node
     region: frankfurt
-    rootDir: apps/api
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npx prisma migrate deploy && npm run start
+    buildCommand: npm install && npx prisma generate --schema=apps/api/prisma/schema.prisma && npm run build --workspace=apps/api
+    startCommand: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma && npm run start --workspace=apps/api
     healthCheckPath: /v1/health
     envVars:
       - key: DATABASE_URL
@@ -107,9 +106,8 @@ services:
     name: bellwetherswe-web-staging
     runtime: node
     region: frankfurt
-    rootDir: apps/web
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
+    buildCommand: npm install && npm run build --workspace=apps/web
+    startCommand: npm run start --workspace=apps/web
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://bellwetherswe-api-staging.onrender.com
@@ -130,9 +128,8 @@ services:
     name: bellwetherswe-ai-staging
     runtime: python
     region: frankfurt
-    rootDir: apps/ai-service
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r apps/ai-service/requirements.txt
+    startCommand: cd apps/ai-service && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -155,9 +152,8 @@ services:
     name: bellwetherswe-worker-staging
     runtime: node
     region: frankfurt
-    rootDir: apps/api
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: node dist/worker.js
+    buildCommand: npm install && npx prisma generate --schema=apps/api/prisma/schema.prisma && npm run build --workspace=apps/api
+    startCommand: node apps/api/dist/worker.js
     envVars:
       - key: REDIS_URL
         fromService:
