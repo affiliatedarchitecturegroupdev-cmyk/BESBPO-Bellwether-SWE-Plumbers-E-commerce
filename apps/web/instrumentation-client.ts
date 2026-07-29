@@ -19,7 +19,3 @@ if (dsn) {
     tracesSampleRate: 0.1,
   });
 }
-
-// Instruments App Router client-side navigations — required export for
-// this specifically, not optional boilerplate.
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

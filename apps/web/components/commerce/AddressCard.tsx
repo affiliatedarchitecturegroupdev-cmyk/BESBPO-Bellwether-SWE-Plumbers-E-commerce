@@ -14,15 +14,21 @@ export function AddressCard({ address }: Props) {
 
   function handleSetDefault() {
     startTransition(async () => {
-      const result = await setDefaultAddressAction(address.id);
-      if (!result.ok) setError(result.error ?? 'Failed');
+      try {
+        await setDefaultAddressAction(address.id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to set default address');
+      }
     });
   }
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteAddressAction(address.id);
-      if (!result.ok) setError(result.error ?? 'Failed');
+      try {
+        await deleteAddressAction(address.id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete address');
+      }
     });
   }
 

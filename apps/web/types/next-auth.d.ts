@@ -1,4 +1,5 @@
-import { DefaultSession } from 'next-auth';
+import 'next-auth';
+import { JWT } from 'next-auth/jwt';
 
 // Augments next-auth's Session type with the accessToken set in auth.ts's
 // session() callback — without this, `session.accessToken` doesn't
@@ -10,7 +11,7 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
+declare module '@auth/core/jwt' {
   interface JWT {
     accessToken?: string;
     scopes?: string[];
