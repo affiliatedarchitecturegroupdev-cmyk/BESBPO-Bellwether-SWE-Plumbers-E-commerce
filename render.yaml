@@ -1,0 +1,151 @@
+databases:
+  - name: bellwetherswe-db
+    plan: starter
+    region: frankfurt # closest Render region to South Africa at time of writing — revisit if Render adds an af region
+    postgresMajorVersion: "16"
+
+services:
+  - type: redis
+    name: bellwetherswe-redis
+    plan: starter
+    region: frankfurt
+    ipAllowList: [] # internal-only access
+
+  - type: web
+    name: bellwetherswe-api
+    runtime: node
+    region: frankfurt
+    rootDir: apps/api
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start
+    healthCheckPath: /v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bellwetherswe-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bellwetherswe-redis
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: KEYCLOAK_ISSUER_URL
+        sync: false # set manually — points at the existing central Besbpo ID instance
+      - key: KEYCLOAK_JWKS_URI
+        sync: false
+      - key: KEYCLOAK_AUDIENCE
+        value: bellwetherswe-api
+      - key: PAYFAST_MERCHANT_ID
+        sync: false
+      - key: PAYFAST_MERCHANT_KEY
+        sync: false
+      - key: PAYFAST_PASSPHRASE
+        sync: false
+      - key: PAYFAST_MODE
+        value: production
+      - key: PUBLIC_WEB_URL
+        value: https://bellwetherswe.shop
+      - key: PUBLIC_API_URL
+        value: https://bellwetherswe-api.onrender.com
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: bellwetherswe-ai
+          property: hostport
+      - key: SENTRY_DSN
+        sync: false
+      - key: SHIPLOGIC_API_KEY
+        sync: false
+      - key: WAREHOUSE_COMPANY
+        value: Bellwether SWE Plumbers
+      - key: WAREHOUSE_STREET_ADDRESS
+        sync: false
+      - key: WAREHOUSE_LOCAL_AREA
+        sync: false
+      - key: WAREHOUSE_CITY
+        sync: false
+      - key: WAREHOUSE_ZONE
+        sync: false
+      - key: WAREHOUSE_POSTAL_CODE
+        sync: false
+
+  - type: web
+    name: bellwetherswe-web
+    runtime: node
+    region: frankfurt
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://bellwetherswe-api.onrender.com
+      - key: NODE_ENV
+        value: production
+      - key: SENTRY_DSN
+        sync: false
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false
+      - key: SENTRY_ORG
+        sync: false
+      - key: SENTRY_PROJECT
+        sync: false
+
+  - type: web
+    name: bellwetherswe-ai
+    runtime: python
+    region: frankfurt
+    rootDir: apps/ai-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bellwetherswe-db
+          property: connectionString
+      - key: API_BASE_URL
+        fromService:
+          type: web
+          name: bellwetherswe-api
+          property: hostport
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    # Not added to any public custom domain — reached only by bellwetherswe-api
+    # over Render's private network via AI_SERVICE_URL above.
+
+  # Runs src/worker.ts — a minimal application context (no HTTP, no
+  # controllers), processing the BullMQ notifications queue. See
+  # docs/AGENTS.md's notifications section for why job payloads are
+  # self-contained: this process deliberately has no PrismaModule and
+  # therefore no DATABASE_URL below — it never queries the database.
+  - type: worker
+    name: bellwetherswe-worker
+    runtime: node
+    region: frankfurt
+    rootDir: apps/api
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: node dist/worker.js
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bellwetherswe-redis
+          property: connectionString
+      - key: NOTIFICATION_CHANNEL
+        value: ses
+      - key: AWS_SES_REGION
+        value: af-south-1
+      - key: NOTIFICATIONS_FROM_ADDRESS
+        value: orders@bellwetherswe.shop
+      - key: BULKSMS_TOKEN_ID
+        sync: false
+      - key: BULKSMS_TOKEN_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

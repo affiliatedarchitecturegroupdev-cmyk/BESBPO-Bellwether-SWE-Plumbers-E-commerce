@@ -1,0 +1,174 @@
+# Staging environment for the Bellwether SWE platform.
+#
+# Render's Blueprint auto-detection only looks for a file literally named
+# `render.yaml` at the repo root — this file is NOT picked up
+# automatically. To actually deploy it: in the Render dashboard, create a
+# new Blueprint instance from this same repository and point it at this
+# file's path (`render.staging.yaml`) when prompted for the blueprint
+# file, rather than letting it default to `render.yaml`. This gives a
+# fully separate set of services, database, and Redis instance — nothing
+# here is shared with production.
+#
+# What's actually different from render.yaml, and why:
+# - Every service name gets a `-staging` suffix, so it can coexist with
+#   production services in the same Render account without colliding.
+# - A separate database and Redis instance — staging data (test orders,
+#   test accounts) must never mix with real customer data, and vice versa.
+# - PAYFAST_MODE=sandbox — staging checkout should hit PayFast's sandbox,
+#   never a real payment gateway.
+# - NOTIFICATION_CHANNEL=log instead of ses — staging shouldn't email real
+#   customers (or whoever's inbox happens to be configured) every time
+#   someone tests a checkout flow.
+# - SENTRY_ENVIRONMENT=staging on every service, so errors from this
+#   environment are visibly distinguishable from production ones in
+#   Sentry's dashboard, not mixed in together.
+#
+# Everything else (module structure, migrations, health checks) is
+# identical to production on purpose — the point of a staging environment
+# is testing the same deployment process and code path production uses,
+# not a different one.
+
+databases:
+  - name: bellwetherswe-db-staging
+    plan: starter
+    region: frankfurt
+    postgresMajorVersion: "16"
+
+services:
+  - type: redis
+    name: bellwetherswe-redis-staging
+    plan: starter
+    region: frankfurt
+    ipAllowList: []
+
+  - type: web
+    name: bellwetherswe-api-staging
+    runtime: node
+    region: frankfurt
+    rootDir: apps/api
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start
+    healthCheckPath: /v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bellwetherswe-db-staging
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bellwetherswe-redis-staging
+          property: connectionString
+      - key: NODE_ENV
+        value: staging
+      - key: KEYCLOAK_ISSUER_URL
+        sync: false
+      - key: KEYCLOAK_JWKS_URI
+        sync: false
+      - key: KEYCLOAK_AUDIENCE
+        value: bellwetherswe-api-staging
+      - key: PAYFAST_MERCHANT_ID
+        sync: false
+      - key: PAYFAST_MERCHANT_KEY
+        sync: false
+      - key: PAYFAST_PASSPHRASE
+        sync: false
+      - key: PAYFAST_MODE
+        value: sandbox
+      - key: PUBLIC_WEB_URL
+        value: https://bellwetherswe-web-staging.onrender.com
+      - key: PUBLIC_API_URL
+        value: https://bellwetherswe-api-staging.onrender.com
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: bellwetherswe-ai-staging
+          property: hostport
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: staging
+      - key: SHIPLOGIC_API_KEY
+        sync: false
+      - key: WAREHOUSE_COMPANY
+        value: Bellwether SWE Plumbers
+      - key: WAREHOUSE_STREET_ADDRESS
+        sync: false
+      - key: WAREHOUSE_LOCAL_AREA
+        sync: false
+      - key: WAREHOUSE_CITY
+        sync: false
+      - key: WAREHOUSE_ZONE
+        sync: false
+      - key: WAREHOUSE_POSTAL_CODE
+        sync: false
+
+  - type: web
+    name: bellwetherswe-web-staging
+    runtime: node
+    region: frankfurt
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://bellwetherswe-api-staging.onrender.com
+      - key: NODE_ENV
+        value: staging
+      - key: SENTRY_DSN
+        sync: false
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false
+      - key: SENTRY_ORG
+        sync: false
+      - key: SENTRY_PROJECT
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: staging
+
+  - type: web
+    name: bellwetherswe-ai-staging
+    runtime: python
+    region: frankfurt
+    rootDir: apps/ai-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bellwetherswe-db-staging
+          property: connectionString
+      - key: API_BASE_URL
+        fromService:
+          type: web
+          name: bellwetherswe-api-staging
+          property: hostport
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: staging
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+  - type: worker
+    name: bellwetherswe-worker-staging
+    runtime: node
+    region: frankfurt
+    rootDir: apps/api
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: node dist/worker.js
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bellwetherswe-redis-staging
+          property: connectionString
+      - key: NOTIFICATION_CHANNEL
+        value: log
+      - key: BULKSMS_TOKEN_ID
+        sync: false
+      - key: BULKSMS_TOKEN_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

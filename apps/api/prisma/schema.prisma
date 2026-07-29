@@ -1,0 +1,1001 @@
+// Bellwether SWE — E-Commerce Data Model
+// Note: this schema file is declarative, not logic-bearing, so it isn't bound
+// by the 280-800 LoC/file guideline in docs/AGENTS.md — that applies to services,
+// controllers, and other files with actual control flow.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum AccountType {
+  RETAIL
+  TRADE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+// Deliberately separate from OrderStatus, not folded into it — a return
+// is about what happens to specific LINE ITEMS after delivery, not a
+// change to what happened with the original purchase. Order.status
+// stays DELIVERED even while a return against it works through this
+// entire lifecycle; ReturnRequest.status is its own, independent source
+// of truth. REJECTED can happen from REQUESTED (e.g. outside the return
+// window — rejected before the customer even ships anything back) OR
+// from RECEIVED (inspection shows normal wear, not the defect claimed) —
+// both are real, different rejection points, not the same thing.
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  REFUNDED
+  REPLACED
+}
+
+enum ReturnReason {
+  DEFECTIVE
+  WRONG_ITEM
+  DAMAGED_IN_TRANSIT
+  NO_LONGER_NEEDED
+  OTHER
+}
+
+enum BookingStatus {
+  REQUESTED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Two paths for trade credit, per the trade-credit workflow decision:
+// INTERNAL_INCIDENTAL = simple net-30/60/90 account structured under the NCA's
+//   incidental-credit exemption (no NCR registration required).
+// THIRD_PARTY_INTERMEDIARY = routed to a registered B2B credit provider
+//   (e.g. Lula, Merchant Capital, Tyme Business) who carries the credit risk.
+enum CreditPath {
+  INTERNAL_INCIDENTAL
+  THIRD_PARTY_INTERMEDIARY
+}
+
+// ───────────────────────── Accounts ─────────────────────────
+
+model Account {
+  id          String      @id @default(uuid())
+  type        AccountType @default(RETAIL)
+  keycloakSub String      @unique // 'sub' claim from the Besbpo ID / Keycloak JWT — the ORIGINAL account holder, unchanged by AccountMember below
+  email       String      @unique
+  companyName String?
+  phone       String?
+  // True for an account created via guest checkout, which never went
+  // through a real Keycloak login — keycloakSub for these is a synthetic
+  // "guest:<uuid>" value (see OrdersService.guestCheckout), guaranteed to
+  // never collide with a real JWT's sub claim, not a real identity. An
+  // explicit flag rather than parsing that string convention elsewhere —
+  // "is this a guest" should be a clean, indexed, queryable fact, not an
+  // implicit pattern every consumer has to remember to check for.
+  isGuest     Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  addresses          Address[]
+  orders             Order[]
+  bookings           InstallationBooking[]
+  warrantyRecords    WarrantyRecord[]
+  tradeCreditAccount TradeCreditAccount?
+  cart               Cart?
+  reviews            Review[]
+  quotes             Quote[]
+  members            AccountMember[]
+  couponRedemptions  CouponRedemption[]
+  wishlistItems      WishlistItem[]
+  productQuestions   ProductQuestion[]
+  productAnswers     ProductAnswer[]
+  returnRequests     ReturnRequest[]
+  recurringOrderTemplates RecurringOrderTemplate[]
+  tradeAccountApplications TradeAccountApplication[]
+
+  @@map("accounts")
+}
+
+// Additive layer, not a restructure — Account.keycloakSub/email above
+// remain exactly what they always were (the original account holder),
+// and every existing relation (orders, addresses, trade credit, cart)
+// stays owned by Account, completely untouched. This just lets OTHER
+// Keycloak identities act on behalf of the same Account — the actual
+// unlock is that AccountsService.resolveOrCreate, once it recognizes a
+// login as a member of an existing account, returns that SAME Account —
+// so TradeCreditService, OrdersService, etc. need zero changes to
+// "just work" for a shared team, since they were always scoped to
+// accountId, never to a specific person.
+//
+// keycloakSub is nullable specifically because invites happen by email,
+// before the invitee has ever logged in — Keycloak only assigns a 'sub'
+// claim at actual identity creation, so it can't be known at invite time.
+// A nullable @unique column is standard, correct Postgres behavior here:
+// multiple NULLs don't conflict with each other, only real values do.
+model AccountMember {
+  id          String            @id @default(uuid())
+  accountId   String
+  account     Account           @relation(fields: [accountId], references: [id])
+  email       String // the email they were invited with
+  keycloakSub String?           @unique // set once this invite is actually linked to a real login — see resolveOrCreate
+  role        AccountMemberRole @default(BUYER)
+  invitedAt   DateTime          @default(now())
+  joinedAt    DateTime? // null until keycloakSub is actually linked
+
+  @@unique([accountId, email])
+  @@map("account_members")
+}
+
+enum AccountMemberRole {
+  // Can invite/remove other members, in addition to placing orders — a
+  // deliberately small permission set, not full delegation of every
+  // account-owner capability (billing/trade-credit terms stay something
+  // only the original Account.keycloakSub holder manages for this pass).
+  OWNER
+  BUYER
+}
+
+// Deliberately has no foreign-key relations to Account or anything else —
+// an audit log entry should survive the thing it describes being deleted
+// (an order, a trade credit account), and actorEmail/targetId are stored
+// as plain strings specifically so this table never becomes a reason a
+// delete elsewhere fails or cascades unexpectedly.
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorEmail String
+  action     String // e.g. "order.status_updated", "trade_credit.drawdown"
+  targetType String // e.g. "Order", "TradeCreditAccount"
+  targetId   String
+  metadata   Json? // whatever extra context is useful for this action type — shape varies by action
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+// One row per notification type an admin has customized — genuinely
+// additive, not a rewrite of NotificationJob's own hardcoded defaults in
+// notification.templates.ts. Absence of a row for a given type is the
+// normal, expected state (nobody's customized it yet), not an error —
+// NotificationTemplatesService.render falls back to the existing
+// hardcoded default in that case. type is a plain string, not a Prisma
+// enum, validated against a shared NOTIFICATION_TYPES constant at the
+// DTO level instead — avoids keeping the same list of 8 job types in
+// sync across a TS union AND a separate Prisma enum.
+model NotificationTemplate {
+  id              String   @id @default(uuid())
+  type            String   @unique
+  subjectTemplate String
+  bodyTemplate    String
+  updatedAt       DateTime @updatedAt
+
+  @@map("notification_templates")
+}
+
+// Deliberately its own standalone model, not a field on Account — most
+// subscribers will never have an account at all (this is meant to
+// capture interest from any visitor, not just registered customers),
+// and an unsubscribe or resubscribe shouldn't have anything to do with
+// account state.
+model NewsletterSubscriber {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  subscribedAt  DateTime @default(now())
+  unsubscribedAt DateTime?
+
+  @@map("newsletter_subscribers")
+}
+
+// Upsert-based, not append-only — resubmitting a request for the same
+// email+product re-arms it (clears notifiedAt back to null) rather than
+// creating a second row, since a customer wanting to be told again about
+// a LATER restock (after already being notified once and the product
+// going out of stock again) is the same real intent as a first-time
+// request, not a duplicate to reject.
+model BackInStockRequest {
+  id         String    @id @default(uuid())
+  email      String
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id])
+  createdAt  DateTime  @default(now())
+  notifiedAt DateTime?
+
+  @@unique([email, productId])
+  @@index([productId])
+  @@map("back_in_stock_requests")
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id])
+  line1      String
+  line2      String?
+  city       String
+  province   String
+  postalCode String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@map("addresses")
+  @@index([accountId])
+}
+
+model TradeCreditAccount {
+  id                    String     @id @default(uuid())
+  accountId             String     @unique
+  account               Account    @relation(fields: [accountId], references: [id])
+  creditPath            CreditPath @default(INTERNAL_INCIDENTAL)
+  creditLimit           Decimal    @db.Decimal(12, 2)
+  creditUsed            Decimal    @db.Decimal(12, 2) @default(0)
+  paymentTermDays       Int        @default(30)
+  // Only set when creditPath = THIRD_PARTY_INTERMEDIARY
+  intermediaryProvider  String?
+  intermediaryAccountRef String?
+  approvedAt            DateTime?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@map("trade_credit_accounts")
+}
+
+enum TradeApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Genuinely separate from TradeCreditAccount above — this is the
+// self-service application for TRADE account TYPE (unlocks trade
+// pricing), not for trade CREDIT (payment terms, unlocked separately
+// and administratively once a trade account already exists). Discovered
+// while building this that no mechanism existed anywhere — not even
+// administratively — to ever set Account.type to TRADE; this model and
+// its review flow are that mechanism, not just the customer-facing form
+// half of it.
+model TradeAccountApplication {
+  id              String                 @id @default(uuid())
+  accountId       String
+  account         Account                @relation(fields: [accountId], references: [id])
+  companyName     String
+  companyRegNumber String?
+  yearsInBusiness Int?
+  message         String?
+  status          TradeApplicationStatus @default(PENDING)
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime               @default(now())
+
+  @@index([accountId])
+  @@map("trade_account_applications")
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+// Trade-credit only, deliberately — generating an order automatically,
+// on a schedule, with no customer present to redirect anywhere, is only
+// possible for a payment method that confirms immediately server-side.
+// PayFast needs an interactive browser session to redirect to; there is
+// none here. Same fundamental reasoning as split checkout's own
+// trade-credit-only restriction (see OrdersService.checkout's
+// cartItemIds handling) — not a coincidence, the same constraint shows
+// up wherever "no human is present to click through a payment page"
+// applies.
+model RecurringOrderTemplate {
+  id              String                       @id @default(uuid())
+  accountId       String
+  account         Account                      @relation(fields: [accountId], references: [id])
+  name            String
+  frequency       RecurringFrequency
+  // Same shape as Order.shippingAddress — a snapshot at template-creation
+  // time, not a live reference to a saved Address that could change or
+  // be deleted later without the customer realizing their recurring
+  // order would silently start going somewhere else.
+  shippingAddress Json
+  poNumber        String?
+  // A manual pause, independent of frequency/schedule — a customer going
+  // on leave for a month shouldn't have to delete and recreate the whole
+  // template to skip a cycle.
+  active          Boolean                      @default(true)
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  // Set when the most recent automatic run failed (insufficient trade
+  // credit, a product no longer available, etc.) — surfaced to the
+  // customer rather than a recurring order just silently not happening
+  // with no visible explanation. Cleared on the next SUCCESSFUL run.
+  lastRunError    String?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  items           RecurringOrderTemplateItem[]
+
+  @@map("recurring_order_templates")
+  @@index([accountId])
+  @@index([nextRunAt])
+}
+
+model RecurringOrderTemplateItem {
+  id         String                 @id @default(uuid())
+  templateId String
+  template   RecurringOrderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product                @relation(fields: [productId], references: [id])
+  quantity   Int
+
+  @@map("recurring_order_template_items")
+  @@index([templateId])
+}
+
+// ───────────────────────── Catalog ─────────────────────────
+
+model Category {
+  id       String     @id @default(uuid())
+  slug     String     @unique
+  name     String
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@map("categories")
+}
+
+// Deliberately NOT a rewrite of Product/Cart/Order around a new
+// "variant vs product" distinction — every variant stays a full,
+// independent Product row, with everything that already points at
+// Product (CartItem, OrderLineItem, Review, QuoteItem) completely
+// untouched. This model is purely a grouping layer: it lets the PDP
+// offer a "Size" selector between real sibling Product pages, without
+// rewriting checkout, reviews, or inventory around a new concept. A
+// full variant-attribute system (multiple option types per group, e.g.
+// size AND color) is real follow-up work this doesn't attempt — see
+// docs/GAP-ANALYSIS-III-FEATURE-EXPANSION.md §6.2.
+// Additive visibility + management layer, not a rewrite of how stock is
+// actually decremented at checkout — Product.stockQty remains the single
+// aggregate number every existing atomic check-and-decrement (Orders,
+// Quotes conversion) operates against, completely unchanged. Setting
+// per-warehouse stock here recomputes that aggregate as the sum across
+// every warehouse, so admin visibility and the checkout-critical number
+// stay consistent — but checkout itself has NO warehouse awareness: a
+// sale decrements the aggregate only, with no concept of which warehouse
+// it "came from." Real location-aware fulfillment (decrementing the
+// right warehouse, e.g. nearest to the delivery address) is real
+// follow-up work, not attempted here — see
+// docs/GAP-ANALYSIS-III-FEATURE-EXPANSION.md §6.3. Retrofitting
+// warehouse-awareness into three separate, already-atomic
+// check-and-decrement transactions (OrdersService.checkout,
+// QuotesService.convertToOrder, and TradeCreditService's drawdown-adjacent
+// path) was a real, deliberate scope decision to leave alone rather than
+// risk correctness-critical code for this pass.
+model Warehouse {
+  id            String   @id @default(uuid())
+  name          String
+  streetAddress String
+  city          String
+  province      String
+  postalCode    String
+  createdAt     DateTime @default(now())
+
+  stockLevels WarehouseStock[]
+
+  @@map("warehouses")
+}
+
+model WarehouseStock {
+  id          String    @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  quantity    Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([warehouseId, productId])
+  @@map("warehouse_stock")
+}
+
+// A percentage discount off whichever base price the customer already
+// qualifies for (retail or trade), not a separate absolute price per
+// tier — this is deliberately simpler than defining full retail AND
+// trade prices at every quantity threshold, which would double admin
+// data entry for every tier and not scale cleanly if more pricing
+// dimensions get added later. minQuantity is an inclusive lower bound
+// ("10 or more units"); CartService.price() finds the highest-qualifying
+// tier for each line's quantity and applies its discount on top of
+// whichever unit price (retail/trade) already applies.
+model PriceTier {
+  id              String   @id @default(uuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  minQuantity     Int
+  discountPercent Decimal  @db.Decimal(5, 2)
+
+  @@unique([productId, minQuantity])
+  @@map("price_tiers")
+  @@index([productId])
+}
+
+model ProductVariantGroup {
+  id          String    @id @default(uuid())
+  name        String // shown as the shared product family name, e.g. "Copper Pipe"
+  optionLabel String // what the selector is choosing between, e.g. "Size"
+  products    Product[]
+
+  @@map("product_variant_groups")
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  sku           String   @unique
+  slug          String   @unique
+  name          String
+  description   String?
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  retailPrice   Decimal  @db.Decimal(12, 2)
+  tradePrice    Decimal  @db.Decimal(12, 2)
+  stockQty      Int      @default(0)
+  sansCompliant Boolean  @default(false)
+  brand         String? // optional — not every product has a distinct manufacturer brand worth filtering by
+  // Defaults are a generic small-parcel placeholder (1kg, 20x15x10cm),
+  // not a real measurement of any specific product — needed for real
+  // courier rate quotes (see ShipLogicService), which are meaningless
+  // without genuine weight/dimensions. Existing catalog rows get this
+  // default via prisma/seed.ts; real per-product values should be
+  // entered as they become known, not left at the default indefinitely.
+  weightKg      Decimal  @default(1) @db.Decimal(8, 2)
+  lengthCm      Int      @default(20)
+  widthCm       Int      @default(15)
+  heightCm      Int      @default(10)
+  // Both null means "not on sale" — the normal case for almost every
+  // product. When salePrice is set, it overrides whichever of
+  // retailPrice/tradePrice would otherwise apply (see PriceTag on the
+  // frontend, the one place that decision is made). saleEndsAt is
+  // optional even when salePrice is set — a null saleEndsAt means "on
+  // sale until manually turned off," not "forever" as a default
+  // assumption; every query that reads salePrice for display also
+  // checks saleEndsAt so an expired sale silently reverts to normal
+  // pricing without needing a cron job to clear the field.
+  salePrice  Decimal?  @db.Decimal(12, 2)
+  saleEndsAt DateTime?
+  // Both null for a standalone product with no variants. When set, both
+  // are required together — enforced in CreateProductDto/ProductsService,
+  // not as a DB constraint, since Prisma can't express "B required iff A
+  // is set" directly. variantValue is this specific row's value for the
+  // group's optionLabel (e.g. "15mm").
+  variantGroupId String?
+  variantGroup   ProductVariantGroup? @relation(fields: [variantGroupId], references: [id])
+  variantValue   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // search_vector (tsvector) lives on this table but is managed outside Prisma's
+  // schema push — see prisma/migrations/manual_fulltext_search.sql. Prisma's
+  // `Unsupported` type is deliberately not declared here to avoid schema-drift
+  // warnings on every `prisma migrate` run; the migration file is the source
+  // of truth for that column.
+
+  bundleItems      BundleItem[]
+  orderLineItems   OrderLineItem[]
+  priceBookEntries PriceBookEntry[]
+  cartItems        CartItem[]
+  images           ProductImage[]
+  reviews          Review[]
+  quoteItems       QuoteItem[]
+  warehouseStock   WarehouseStock[]
+  wishlistedBy     WishlistItem[]
+  questions        ProductQuestion[]
+  priceTiers       PriceTier[]
+  recurringOrderTemplateItems RecurringOrderTemplateItem[]
+  backInStockRequests BackInStockRequest[]
+
+  @@map("products")
+  @@index([categoryId])
+}
+
+// Explicit model, not a naming convention — the frontend previously
+// assumed exactly one image existed at products/${sku}.jpg on S3 with no
+// way to know whether that was actually true. This makes image existence
+// queryable and supports a real gallery (multiple images, ordered),
+// matching what the UI mockups always showed.
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("product_images")
+  @@index([productId])
+}
+
+// One review per account per product, enforced by the composite unique
+// constraint below — and only for products an account has actually had
+// delivered/confirmed on an order (checked in ReviewsService.create, not
+// expressible as a schema constraint), not just anyone who's ever viewed
+// the product page.
+model Review {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id])
+  rating    Int // 1-5, enforced in CreateReviewDto, not repeated as a DB check constraint
+  title     String?
+  body      String
+  createdAt DateTime @default(now())
+
+  @@unique([productId, accountId])
+  @@map("reviews")
+  @@index([productId])
+}
+
+// Deliberately separate from Review, not a "question" review type —
+// asked BEFORE purchase, typically ("does this fit a 15mm pipe?"),
+// unlike reviews which require a verified purchase (see
+// ReviewsService.assertVerifiedPurchase). Requiring a purchase to ASK
+// would be backwards: someone asking is usually unsure BECAUSE they
+// haven't bought it yet. No such check here, deliberately.
+model ProductQuestion {
+  id        String          @id @default(uuid())
+  productId String
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account         @relation(fields: [accountId], references: [id])
+  question  String
+  createdAt DateTime        @default(now())
+  answers   ProductAnswer[]
+
+  @@map("product_questions")
+  @@index([productId])
+}
+
+// Answerable by any authenticated account, not staff-only — closer to
+// Amazon's community Q&A model than a support-ticket one, given this
+// isn't just a hotline: a customer who already owns the product often
+// knows the real-world answer as well as anyone. isFromStaff is set by
+// QuestionsService from the ANSWERING caller's own JWT scopes at
+// creation time — never a client-supplied field a customer could set to
+// falsely claim authority.
+model ProductAnswer {
+  id          String          @id @default(uuid())
+  questionId  String
+  question    ProductQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account         @relation(fields: [accountId], references: [id])
+  answer      String
+  isFromStaff Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+
+  @@map("product_answers")
+  @@index([questionId])
+}
+
+enum QuoteStatus {
+  REQUESTED // customer submitted, awaiting admin pricing
+  QUOTED // admin has priced it, awaiting the customer's response
+  ACCEPTED
+  DECLINED
+}
+
+// Acceptance does NOT automatically create an Order — see
+// QuotesService.convertToOrder for the one narrow path that does exist:
+// an explicit, admin-triggered conversion, and only when every item on
+// the quote references a real catalog product (OrderLineItem.productId
+// is a required FK — a quote with any pure free-text/custom line item,
+// e.g. "on-site labour, 2 days," cannot become an order under the
+// current schema, and conversion is rejected outright rather than
+// silently dropping that line). orderId tracks the result once
+// converted, both to prevent converting the same quote twice and so the
+// quote detail view can link straight to the order it became.
+model Quote {
+  id          String      @id @default(uuid())
+  accountId   String
+  account     Account     @relation(fields: [accountId], references: [id])
+  status      QuoteStatus @default(REQUESTED)
+  description String // free text — what the customer is asking for, in their own words
+  items       QuoteItem[]
+  quotedTotal Decimal?    @db.Decimal(12, 2) // set by admin when transitioning to QUOTED
+  validUntil  DateTime? // set by admin alongside quotedTotal
+  adminNotes  String? // visible to the customer once quoted — payment terms, lead time, etc.
+  orderId     String?     @unique
+  order       Order?      @relation(fields: [orderId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("quotes")
+  @@index([accountId])
+}
+
+model QuoteItem {
+  id          String   @id @default(uuid())
+  quoteId     String
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  description String // always present — a plain label even for a catalog product, and the only thing that exists at all for custom/non-catalog line items (e.g. "on-site labour, 2 days")
+  quantity    Int
+  unitPrice   Decimal? @db.Decimal(12, 2) // null while the quote is still REQUESTED; set by admin when pricing it
+
+  @@map("quote_items")
+}
+
+model Bundle {
+  id          String       @id @default(uuid())
+  slug        String       @unique
+  name        String
+  description String?
+  sector      String // Residential | Commercial | Industrial | Institutional | Civil | Infrastructure
+  bundlePrice Decimal      @db.Decimal(12, 2)
+  items       BundleItem[]
+  createdAt   DateTime     @default(now())
+
+  @@map("bundles")
+}
+
+model BundleItem {
+  id        String  @id @default(uuid())
+  bundleId  String
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@map("bundle_items")
+  @@index([bundleId])
+}
+
+// ───────────────────────── Coupons & Discounts ─────────────────────────
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+model Coupon {
+  id                String       @id @default(uuid())
+  // Stored and matched uppercase — CouponsService normalizes on both
+  // create and lookup, so "summer10"/"SUMMER10"/"Summer10" all resolve
+  // to the same coupon rather than being case-sensitive-distinct codes
+  // an admin could accidentally create duplicates of.
+  code              String       @unique
+  discountType      DiscountType
+  // Percentage: 0-100, validated at the DTO level (a "150% off" coupon
+  // is a data-entry error, not a valid discount). Fixed amount: a Rand
+  // value, capped at the cart's own subtotal when applied (see
+  // CouponsService.validateAndCompute) so a fixed discount can never
+  // produce a negative total.
+  discountValue     Decimal      @db.Decimal(12, 2)
+  // Optional floor — cart subtotal must be at least this much for the
+  // coupon to apply at all. Null means no minimum.
+  minSubtotal       Decimal?     @db.Decimal(12, 2)
+  // Optional caps — null means unlimited. usedCount is NOT
+  // incremented here; it's derived by counting CouponRedemption rows
+  // for this coupon, so it can never drift from what actually redeemed
+  // (see CouponsService.validateAndCompute).
+  maxUses           Int?
+  maxUsesPerAccount Int?
+  // Independent of the date range below — a manual kill-switch an admin
+  // can flip without needing to edit dates (e.g. a coupon that was
+  // meant to run all month, ended early because inventory ran out).
+  active            Boolean      @default(true)
+  validFrom         DateTime?
+  validUntil        DateTime?
+  createdAt         DateTime     @default(now())
+
+  redemptions       CouponRedemption[]
+
+  @@map("coupons")
+}
+
+// One row per successful redemption — the actual source of truth for
+// "how many times has this been used" and "has this account already
+// used this one," not a counter on Coupon itself (a counter could drift
+// from reality; a row per real redemption cannot). discountAmount here
+// is a snapshot in Rand, same reasoning as Order.discountAmount — a
+// coupon's own discountValue could change later without retroactively
+// changing what a past order was actually discounted by.
+model CouponRedemption {
+  id             String   @id @default(uuid())
+  couponId       String
+  coupon         Coupon   @relation(fields: [couponId], references: [id])
+  accountId      String
+  account        Account  @relation(fields: [accountId], references: [id])
+  orderId        String   @unique // one redemption per order — a coupon can't be "used twice" on the same order
+  order          Order    @relation(fields: [orderId], references: [id])
+  discountAmount Decimal  @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+
+  @@map("coupon_redemptions")
+}
+
+// ───────────────────────── Pricing Engine ─────────────────────────
+
+model PriceBookEntry {
+  id            String   @id @default(uuid())
+  sector        String
+  serviceCode   String
+  productId     String?
+  product       Product? @relation(fields: [productId], references: [id])
+  baseLaborRate Decimal  @db.Decimal(12, 2)
+  unit          String // e.g. per_fixture | per_meter | per_hour
+  effectiveFrom DateTime @default(now())
+
+  @@map("price_book_entries")
+  @@index([sector, serviceCode])
+}
+
+model ComplexityMultiplier {
+  id          String  @id @default(uuid())
+  code        String  @unique // e.g. MULTI_STOREY | CONFINED_SPACE | AFTER_HOURS
+  label       String
+  multiplier  Decimal @db.Decimal(4, 2) // e.g. 1.25
+  description String?
+
+  @@map("complexity_multipliers")
+}
+
+// ───────────────────────── Cart & Orders ─────────────────────────
+
+model Cart {
+  id        String     @id @default(uuid())
+  accountId String     @unique
+  account   Account    @relation(fields: [accountId], references: [id])
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+  // Set when an abandoned-cart reminder is sent for the CURRENT
+  // abandonment episode (see CartAbandonmentService in the worker
+  // process); cleared back to null by CartService.touchCart whenever the
+  // cart's contents genuinely change, so a customer who returns, then
+  // abandons again later, becomes eligible for a fresh reminder rather
+  // than being permanently excluded by one sent long ago.
+  reminderSentAt DateTime?
+  // Set via CartService.applyCoupon, cleared via removeCoupon or
+  // touchCart's own reset on genuine cart-content changes... actually not
+  // touched by touchCart (see that method) — a coupon applying to what's
+  // in the cart isn't the same kind of "activity" as adding/removing
+  // items, and re-validated fresh on every price() call regardless (see
+  // that method's own comment), so a stale/no-longer-valid code here
+  // never silently produces a wrong total.
+  couponCode     String?
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@map("cart_items")
+  @@index([cartId])
+}
+
+// Deliberately its own small model, not folded into Cart/CartItem — a
+// wishlist is a genuinely different concept ("I might want this later")
+// from a cart ("I'm buying this now"), and conflating the two was
+// explicitly named as the problem with not having this at all (adding
+// something to the cart just to remember it, then it sitting there
+// indefinitely). No quantity field — wanting something twice as much
+// isn't a concept a wishlist needs; that's what the cart is for once
+// they're actually ready to buy.
+model WishlistItem {
+  id        String   @id @default(uuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([accountId, productId])
+  @@map("wishlist_items")
+  @@index([accountId])
+}
+
+model Order {
+  id               String               @id @default(uuid())
+  orderNumber      String               @unique
+  accountId        String
+  account          Account              @relation(fields: [accountId], references: [id])
+  status           OrderStatus          @default(PENDING)
+  // Snapshotted at checkout, not a relation to Address — if the account
+  // edits or deletes a saved address later, past orders must still show
+  // where they were actually delivered.
+  shippingAddress  Json
+  subtotal         Decimal              @db.Decimal(12, 2)
+  vatAmount        Decimal              @db.Decimal(12, 2)
+  deliveryFee      Decimal              @db.Decimal(12, 2) @default(0)
+  // Snapshotted at checkout time, same reasoning as subtotal/vatAmount
+  // above — Coupon.discountValue could change or the coupon could be
+  // deactivated later, but this order's own discount must never
+  // retroactively change. discountAmount is 0 (not null) when no coupon
+  // was applied, matching deliveryFee's own default-0 convention rather
+  // than needing a null check everywhere this is displayed.
+  couponCode       String?
+  discountAmount   Decimal              @db.Decimal(12, 2) @default(0)
+  total            Decimal              @db.Decimal(12, 2)
+  usedTradePricing Boolean              @default(false)
+  // Customer's own internal purchase-order/reference number, set at
+  // checkout time (CheckoutDto.poNumber) — free text this app never
+  // validates or interprets, purely for the customer's own accounting.
+  poNumber         String?
+  // Which specific person (of potentially several sharing this Account
+  // via AccountMember) actually placed this order — set from the
+  // checkout caller's own JWT email, not the account's own top-level
+  // email field, so it stays meaningful even when they differ. Nullable
+  // for orders created before this field existed, not because it's ever
+  // legitimately unknown for a NEW order — checkout always has a caller.
+  placedByEmail    String?
+  paymentGateway   String? // "payfast"
+  paymentRef       String?
+  // Set by an admin at/after dispatch — see OrdersService.updateStatus.
+  // trackingUrl is optional and deliberately NOT auto-generated from
+  // courierName + trackingNumber: no confirmed, working deep-link query
+  // parameter pattern exists for South African couriers' public tracking
+  // pages (checked before assuming one — see docs/AGENTS.md's logistics
+  // section). Where trackingUrl is left blank, the frontend links to
+  // that courier's general tracking homepage instead and shows the
+  // number as plain text for the customer to paste in themselves.
+  courierName      String?
+  trackingNumber   String?
+  trackingUrl      String?
+  lineItems        OrderLineItem[]
+  couponRedemption CouponRedemption?
+  returnRequests   ReturnRequest[]
+  booking          InstallationBooking?
+  quote            Quote?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@map("orders")
+  @@index([accountId])
+}
+
+model OrderLineItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  // Snapshotted at order time, same reasoning as Order.shippingAddress — if
+  // a product is renamed later, past orders must still show what the
+  // customer actually bought at the time. Also means order history stays
+  // readable even in the edge case a product record itself is later
+  // removed (see the reference-check guard in ProductsService.remove()).
+  productName String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(12, 2)
+  lineTotal   Decimal @db.Decimal(12, 2)
+  returnLineItems ReturnLineItem[]
+
+  @@map("order_line_items")
+  @@index([orderId])
+}
+
+// A distinct workflow from cancellation (PaymentsService.cancelOrder) —
+// that assumes the order hasn't shipped yet; this is for "I received
+// this, it's faulty/wrong" against a DELIVERED order, where inspection
+// and partial refund/replacement are real, different possibilities
+// cancellation never has to handle. See ReturnStatus's own comment for
+// why this has its own status lifecycle rather than reusing
+// Order.status.
+model ReturnRequest {
+  id           String           @id @default(uuid())
+  orderId      String
+  order        Order            @relation(fields: [orderId], references: [id])
+  accountId    String
+  account      Account          @relation(fields: [accountId], references: [id])
+  status       ReturnStatus     @default(REQUESTED)
+  reason       ReturnReason
+  reasonDetail String?
+  // Admin-facing note — a rejection reason, an inspection finding,
+  // whatever's relevant at whichever stage this currently sits in. Not
+  // shown to the customer as a separate labeled field on the frontend
+  // in this pass; kept simple as one running note rather than a
+  // per-status-transition log.
+  adminNote    String?
+  // Set once actually resolved via refund — a snapshot of what was
+  // refunded, same reasoning as Order.discountAmount: this could be a
+  // PARTIAL refund (some but not all returned line items approved), so
+  // it's tracked explicitly rather than assumed to equal the order's
+  // own total.
+  refundAmount Decimal?         @db.Decimal(12, 2)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  lineItems    ReturnLineItem[]
+
+  @@map("return_requests")
+  @@index([orderId])
+  @@index([accountId])
+}
+
+model ReturnLineItem {
+  id              String        @id @default(uuid())
+  returnRequestId String
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  orderLineItemId String
+  orderLineItem   OrderLineItem @relation(fields: [orderLineItemId], references: [id])
+  // How many units of this specific line are being returned — a partial
+  // quantity, not necessarily the line's full original quantity (e.g.
+  // bought 5, only 2 arrived damaged).
+  quantity        Int
+
+  @@map("return_line_items")
+  @@index([returnRequestId])
+}
+
+// ───────────────────────── Field Services ─────────────────────────
+
+model InstallationBooking {
+  id                        String          @id @default(uuid())
+  orderId                   String?         @unique
+  order                     Order?          @relation(fields: [orderId], references: [id])
+  accountId                 String
+  account                   Account         @relation(fields: [accountId], references: [id])
+  sector                    String
+  serviceCode               String
+  status                    BookingStatus   @default(REQUESTED)
+  scheduledFor              DateTime?
+  siteAddress               String
+  complexityMultiplierCodes String[]
+  notes                     String?
+  warrantyRecord            WarrantyRecord?
+  coCRecord                 CoCRecord?
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+
+  @@map("installation_bookings")
+  @@index([accountId])
+}
+
+model WarrantyRecord {
+  id         String               @id @default(uuid())
+  bookingId  String               @unique
+  booking    InstallationBooking  @relation(fields: [bookingId], references: [id])
+  accountId  String
+  account    Account              @relation(fields: [accountId], references: [id])
+  termMonths Int                  @default(12)
+  issuedAt   DateTime             @default(now())
+  expiresAt  DateTime
+
+  @@map("warranty_records")
+}
+
+// PIRB has no public API (confirmed) — this is a manual/document workflow:
+// staff record the certificate details and attach the generated/scanned
+// document (stored in S3); there is no live PIRB system integration.
+model CoCRecord {
+  id                String              @id @default(uuid())
+  bookingId         String              @unique
+  booking           InstallationBooking @relation(fields: [bookingId], references: [id])
+  pirbRegNumber     String // issuing plumber's PIRB registration number
+  certificateNumber String              @unique
+  documentUrl       String // S3 (af-south-1) URL of the CoC document
+  issuedAt          DateTime            @default(now())
+
+  @@map("coc_records")
+}

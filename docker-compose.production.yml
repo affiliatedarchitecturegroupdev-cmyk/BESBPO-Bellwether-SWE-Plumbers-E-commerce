@@ -1,0 +1,211 @@
+# ===============================================
+# Bellwether SWE E-Commerce - Production Docker Compose
+# ===============================================
+# Production-ready configuration (uses pre-built images)
+# Usage: docker-compose -f docker-compose.production.yml up -d
+
+services:
+  # ===============================================
+  # Database (PostgreSQL 16)
+  # ===============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: bellwether-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: bellwether
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: bellwether_ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bellwether -d bellwether_ecommerce"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===============================================
+  # Redis
+  # ===============================================
+  redis:
+    image: redis:7-alpine
+    container_name: bellwether-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ===============================================
+  # API Service (NestJS)
+  # ===============================================
+  api:
+    image: bellwether/api:latest
+    container_name: bellwether-api
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://bellwether:${POSTGRES_PASSWORD}@postgres:5432/bellwether_ecommerce
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      PORT: 3001
+      KEYCLOAK_ISSUER_URL: ${KEYCLOAK_ISSUER_URL}
+      KEYCLOAK_JWKS_URI: ${KEYCLOAK_JWKS_URI}
+      KEYCLOAK_AUDIENCE: bellwetherswe-api
+      PAYFAST_MERCHANT_ID: ${PAYFAST_MERCHANT_ID}
+      PAYFAST_MERCHANT_KEY: ${PAYFAST_MERCHANT_KEY}
+      PAYFAST_PASSPHRASE: ${PAYFAST_PASSPHRASE}
+      PAYFAST_MODE: ${PAYFAST_MODE:-production}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      AI_SERVICE_URL: http://ai:8000
+      SENTRY_DSN: ${SENTRY_DSN}
+      SHIPLOGIC_API_KEY: ${SHIPLOGIC_API_KEY}
+      WAREHOUSE_COMPANY: "Bellwether SWE Plumbers"
+      WAREHOUSE_STREET_ADDRESS: ${WAREHOUSE_STREET_ADDRESS}
+      WAREHOUSE_LOCAL_AREA: ${WAREHOUSE_LOCAL_AREA}
+      WAREHOUSE_CITY: ${WAREHOUSE_CITY}
+      WAREHOUSE_ZONE: ${WAREHOUSE_ZONE}
+      WAREHOUSE_POSTAL_CODE: ${WAREHOUSE_POSTAL_CODE}
+      NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-ses}
+      AWS_SES_REGION: af-south-1
+      NOTIFICATIONS_FROM_ADDRESS: orders@bellwetherswe.shop
+      BULKSMS_TOKEN_ID: ${BULKSMS_TOKEN_ID}
+      BULKSMS_TOKEN_SECRET: ${BULKSMS_TOKEN_SECRET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET:-bellwether-swe-catalog}
+      S3_REGION: af-south-1
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===============================================
+  # Web Frontend (Next.js)
+  # ===============================================
+  web:
+    image: bellwether/web:latest
+    container_name: bellwether-web
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
+      NODE_ENV: production
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_KEYCLOAK_ID: ${AUTH_KEYCLOAK_ID:-bellwetherswe-web}
+      AUTH_KEYCLOAK_SECRET: ${AUTH_KEYCLOAK_SECRET}
+      AUTH_KEYCLOAK_ISSUER: ${AUTH_KEYCLOAK_ISSUER:-https://id.besbpo.co.za/realms/besbpo}
+      SENTRY_DSN: ${SENTRY_DSN}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===============================================
+  # AI Service (FastAPI)
+  # ===============================================
+  ai:
+    image: bellwether/ai:latest
+    container_name: bellwether-ai
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://bellwether:${POSTGRES_PASSWORD}@postgres:5432/bellwether_ecommerce
+      API_BASE_URL: http://api:3001
+      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_ENVIRONMENT: production
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===============================================
+  # Notifications Worker
+  # ===============================================
+  worker:
+    image: bellwether/api:latest
+    container_name: bellwether-worker
+    restart: always
+    command: node dist/worker.js
+    environment:
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-ses}
+      AWS_SES_REGION: af-south-1
+      NOTIFICATIONS_FROM_ADDRESS: orders@bellwetherswe.shop
+      BULKSMS_TOKEN_ID: ${BULKSMS_TOKEN_ID}
+      BULKSMS_TOKEN_SECRET: ${BULKSMS_TOKEN_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+# ===============================================
+# Volumes
+# ===============================================
+volumes:
+  postgres_data:
+  redis_data:
+
+# ===============================================
+# Networks
+# ===============================================
+networks:
+  default:
+    name: bellwether-network

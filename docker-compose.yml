@@ -1,0 +1,153 @@
+# ===============================================
+# Bellwether SWE E-Commerce - Docker Compose
+# ===============================================
+# Local development environment
+# Usage: docker-compose up -d
+
+services:
+  # ===============================================
+  # Database (PostgreSQL 16)
+  # ===============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: bellwether-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bellwether
+      POSTGRES_PASSWORD: bellwether_dev
+      POSTGRES_DB: bellwether_ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bellwether -d bellwether_ecommerce"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===============================================
+  # Redis
+  # ===============================================
+  redis:
+    image: redis:7-alpine
+    container_name: bellwether-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===============================================
+  # API Service (NestJS)
+  # ===============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: bellwether-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://bellwether:bellwether_dev@postgres:5432/bellwether_ecommerce
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+      PORT: 3001
+      KEYCLOAK_ISSUER_URL: ${KEYCLOAK_ISSUER_URL:-https://id.besbpo.co.za/realms/besbpo}
+      KEYCLOAK_JWKS_URI: ${KEYCLOAK_JWKS_URI:-https://id.besbpo.co.za/realms/besbpo/protocol/openid-connect/certs}
+      KEYCLOAK_AUDIENCE: bellwetherswe-api
+      PAYFAST_MERCHANT_ID: ${PAYFAST_MERCHANT_ID:-}
+      PAYFAST_MERCHANT_KEY: ${PAYFAST_MERCHANT_KEY:-}
+      PAYFAST_PASSPHRASE: ${PAYFAST_PASSPHRASE:-}
+      PAYFAST_MODE: ${PAYFAST_MODE:-sandbox}
+      PUBLIC_WEB_URL: http://localhost:3000
+      PUBLIC_API_URL: http://localhost:3001
+      AI_SERVICE_URL: http://ai:8000
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SHIPLOGIC_API_KEY: ${SHIPLOGIC_API_KEY:-}
+      WAREHOUSE_COMPANY: "Bellwether SWE Plumbers"
+      WAREHOUSE_STREET_ADDRESS: ${WAREHOUSE_STREET_ADDRESS:-}
+      WAREHOUSE_LOCAL_AREA: ${WAREHOUSE_LOCAL_AREA:-}
+      WAREHOUSE_CITY: ${WAREHOUSE_CITY:-}
+      WAREHOUSE_ZONE: ${WAREHOUSE_ZONE:-}
+      WAREHOUSE_POSTAL_CODE: ${WAREHOUSE_POSTAL_CODE:-}
+      NOTIFICATION_CHANNEL: log
+      AWS_SES_REGION: af-south-1
+      NOTIFICATIONS_FROM_ADDRESS: orders@bellwetherswe.shop
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api/src:/app/apps/api/src:ro
+    command: npm run start:dev --workspace=apps/api
+
+  # ===============================================
+  # Web Frontend (Next.js)
+  # ===============================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: bellwether-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NODE_ENV: development
+      AUTH_SECRET: ${AUTH_SECRET:-dev-secret-change-in-production}
+      AUTH_KEYCLOAK_ID: ${AUTH_KEYCLOAK_ID:-bellwetherswe-web}
+      AUTH_KEYCLOAK_SECRET: ${AUTH_KEYCLOAK_SECRET:-}
+      AUTH_KEYCLOAK_ISSUER: ${AUTH_KEYCLOAK_ISSUER:-https://id.besbpo.co.za/realms/besbpo}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web:/app/apps/web:ro
+    command: npm run dev --workspace=apps/web
+
+  # ===============================================
+  # AI Service (FastAPI)
+  # ===============================================
+  ai:
+    build:
+      context: .
+      dockerfile: Dockerfile.ai
+    container_name: bellwether-ai
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://bellwether:bellwether_dev@postgres:5432/bellwether_ecommerce
+      API_BASE_URL: http://localhost:3001
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: development
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/ai-service:/app/apps/ai-service:ro
+
+# ===============================================
+# Volumes
+# ===============================================
+volumes:
+  postgres_data:
+  redis_data:
+
+# ===============================================
+# Networks
+# ===============================================
+networks:
+  default:
+    name: bellwether-network

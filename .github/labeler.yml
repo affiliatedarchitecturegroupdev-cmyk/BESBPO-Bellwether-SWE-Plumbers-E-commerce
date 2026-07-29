@@ -1,0 +1,62 @@
+# ===============================================
+# PR Label Configuration
+# ===============================================
+# Auto-label PRs based on changed files
+
+# API Changes
+api:
+  - changed-files: any-files-glob
+    files:
+      - 'apps/api/**/*'
+
+# Web/Frontend Changes
+web:
+  - changed-files: any-files-glob
+    files:
+      - 'apps/web/**/*'
+
+# AI Service Changes
+ai:
+  - changed-files: any-files-glob
+    files:
+      - 'apps/ai-service/**/*'
+
+# Database/Prisma Changes
+database:
+  - changed-files: any-files-glob
+    files:
+      - '**/schema.prisma'
+      - '**/*.sql'
+
+# Documentation Changes
+documentation:
+  - changed-files: any-files-glob
+    files:
+      - '**/*.md'
+      - 'docs/**/*'
+
+# CI/CD Changes
+ci:
+  - changed-files: any-files-glob
+    files:
+      - '.github/**/*'
+      - 'render.yaml'
+      - 'render.staging.yaml'
+      - 'docker-compose*.yml'
+      - 'Dockerfile*'
+
+# Infrastructure Changes
+infrastructure:
+  - changed-files: any-files-glob
+    files:
+      - 'render.yaml'
+      - 'render.staging.yaml'
+      - 'Dockerfile*'
+      - 'docker-compose*.yml'
+
+# Security Changes
+security:
+  - changed-files: any-files-glob
+    files:
+      - '**/.env*'
+      - '**/secrets*'

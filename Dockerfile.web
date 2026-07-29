@@ -1,0 +1,55 @@
+# ===============================================
+# Bellwether SWE E-Commerce Web - Dockerfile
+# ===============================================
+# Multi-stage build for optimized production image
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY apps/web/package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production=false
+
+# Copy source code
+COPY apps/web/src ./src
+COPY apps/web/public ./public
+COPY apps/web/next.config.js ./
+COPY apps/web/tailwind.config.ts ./
+COPY apps/web/postcss.config.js ./
+COPY apps/web/tsconfig.json ./
+COPY packages ./packages
+
+# Build the application
+RUN npm run build -w apps/web
+
+# ===============================================
+# Production stage
+# ===============================================
+FROM node:20-alpine AS production
+
+WORKDIR /app
+
+# Install production dependencies only
+COPY package*.json ./
+COPY apps/web/package*.json ./
+RUN npm ci --only=production && npm prune
+
+# Copy built application
+COPY --from=builder /app/apps/web/.next ./.next
+COPY --from=builder /app/apps/web/public ./public
+COPY apps/web/next.config.js ./
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+USER nextjs
+
+# Expose port (Next.js uses 3000 by default)
+EXPOSE 3000
+
+# Start the application
+CMD ["npm", "start"]

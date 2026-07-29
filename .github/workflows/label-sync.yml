@@ -1,0 +1,21 @@
+name: Label Sync
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    types: [opened, synchronize]
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  label-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync PR labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,27 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: 'Skip database migrations'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render
+        uses: render-deploy-action/render-deploy-action@v1
+        with:
+          blueprint-file: render.staging.yaml
+          render-api-key: ${{ secrets.RENDER_API_KEY }}
+          skip-migrations: ${{ inputs.skip_migrations || false }}
