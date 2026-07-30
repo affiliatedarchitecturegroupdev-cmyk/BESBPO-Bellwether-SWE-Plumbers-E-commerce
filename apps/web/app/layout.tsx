@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter, IBM_Plex_Mono } from 'next/font/google';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CompareBar } from '@/components/commerce/CompareBar';
+import { Providers } from '@/components/Providers';
 import './globals.css';
 
 const spaceGrotesk = Space_Grotesk({
@@ -27,10 +28,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${ibmPlexMono.variable}`}>
       <body>
-        <Header />
-        <main>{children}</main>
-        <Footer />
-        <CompareBar />
+        <Providers>
+          <Header />
+          <main>{children}</main>
+          <Footer />
+          <CompareBar />
+        </Providers>
       </body>
     </html>
   );
