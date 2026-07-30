@@ -71,6 +71,22 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 - [ ] Test on iOS Safari, Android Chrome
 - [ ] Touch-friendly interactions
 
+### 3b. Trust & Compliance
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Cookie consent banner | ✅ Implemented | DONE |
+| 404 page | ✅ Implemented | DONE |
+| Privacy policy | ✅ Implemented | Done |
+| Terms of service | ✅ Implemented | Done |
+| SSL/HTTPS | ✅ Assumed | - |
+| Accessibility (WCAG) | ⏳ Pending audit | MEDIUM |
+
+**Action Required:**
+- [x] Add cookie consent banner ✅
+- [x] Add 404 page ✅
+- [ ] Accessibility audit
+
 ---
 
 ## 🟡 IMPORTANT GAPS (Should Fix)
