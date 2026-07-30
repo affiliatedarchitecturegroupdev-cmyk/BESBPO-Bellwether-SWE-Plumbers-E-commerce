@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useRef, useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { submitCheckoutAction, CheckoutResult } from '@/lib/actions/checkout-actions';
 import { PayfastRedirectForm } from './PayfastRedirectForm';
+import { AddressAutocomplete } from './AddressAutocomplete';
 import { Address } from '@/lib/types';
 
 const PROVINCES = [
@@ -17,6 +18,13 @@ const PROVINCES = [
   'North West',
   'Western Cape',
 ];
+
+interface AddressSuggestion {
+  suburb: string;
+  city: string;
+  province: string;
+  postalCode: string;
+}
 
 interface Props {
   savedAddresses: Address[];
@@ -34,11 +42,34 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<'payfast' | 'trade_credit'>('payfast');
   const router = useRouter();
 
+  // Address autocomplete state
+  const [addressLine1, setAddressLine1] = useState(savedAddresses.find((a) => a.isDefault)?.line1 ?? '');
+  const [selectedAddress, setSelectedAddress] = useState<AddressSuggestion | null>(null);
+
+  // Set initial values from saved address
+  useEffect(() => {
+    const defaultAddress = savedAddresses.find((a) => a.isDefault);
+    if (defaultAddress) {
+      setAddressLine1(defaultAddress.line1);
+    }
+  }, [savedAddresses]);
+
+  // When user selects from autocomplete, populate other fields
+  function handleAddressSelect(suggestion: AddressSuggestion) {
+    setSelectedAddress(suggestion);
+    if (streetNumberRef.current) {
+      streetNumberRef.current.value = '';
+    }
+    if (cityRef.current) cityRef.current.value = suggestion.city;
+    if (postalCodeRef.current) postalCodeRef.current.value = suggestion.postalCode;
+    if (provinceRef.current) provinceRef.current.value = suggestion.province;
+  }
+
   // Fields stay uncontrolled — the saved-address picker sets .value
   // directly via these refs rather than lifting everything into React
   // state, since FormData reads whatever's actually in the DOM at submit
   // time regardless of how it got there.
-  const line1Ref = useRef<HTMLInputElement>(null);
+  const streetNumberRef = useRef<HTMLInputElement>(null);
   const line2Ref = useRef<HTMLInputElement>(null);
   const cityRef = useRef<HTMLInputElement>(null);
   const postalCodeRef = useRef<HTMLInputElement>(null);
@@ -47,7 +78,9 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
   function applySavedAddress(addressId: string) {
     const address = savedAddresses.find((a) => a.id === addressId);
     if (!address) return;
-    if (line1Ref.current) line1Ref.current.value = address.line1;
+    setAddressLine1(address.line1);
+    setSelectedAddress(null);
+    if (streetNumberRef.current) streetNumberRef.current.value = '';
     if (line2Ref.current) line2Ref.current.value = address.line2 ?? '';
     if (cityRef.current) cityRef.current.value = address.city;
     if (postalCodeRef.current) postalCodeRef.current.value = address.postalCode;
@@ -59,6 +92,11 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
     setError(null);
     const formData = new FormData(e.currentTarget);
     formData.set('paymentMethod', paymentMethod);
+
+    // Combine street number with suburb for line1
+    const streetNumber = streetNumberRef.current?.value ?? '';
+    const fullLine1 = streetNumber ? `${streetNumber}, ${addressLine1}` : addressLine1;
+    formData.set('line1', fullLine1);
 
     startTransition(async () => {
       const result = await submitCheckoutAction(formData);
@@ -143,19 +181,35 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
         </div>
       )}
 
-      <div className="mb-4">
+      {/* Street Number (optional) */}
+      <div className="mb-3">
         <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">
-          Address Line 1
+          Street Number
         </label>
         <input
-          ref={line1Ref}
-          name="line1"
-          required
-          defaultValue={savedAddresses.find((a) => a.isDefault)?.line1 ?? ''}
+          ref={streetNumberRef}
+          placeholder="e.g. 123"
           className="w-full border border-black/15 rounded-sm px-3 py-2 text-sm"
         />
       </div>
-      <div className="mb-4">
+
+      {/* Address Suburb/City with Autocomplete */}
+      <div className="mb-3">
+        <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">
+          Suburb / Area <span className="text-hydra">*</span>
+        </label>
+        <AddressAutocomplete
+          value={addressLine1}
+          onChange={setAddressLine1}
+          onSelect={handleAddressSelect}
+          placeholder="Start typing suburb or city..."
+          required
+          id="address-autocomplete"
+        />
+        <input type="hidden" name="line1" value={addressLine1} />
+      </div>
+
+      <div className="mb-3">
         <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">
           Address Line 2 (optional)
         </label>
@@ -163,12 +217,16 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
           ref={line2Ref}
           name="line2"
           defaultValue={savedAddresses.find((a) => a.isDefault)?.line2 ?? ''}
+          placeholder="Unit, building, estate name, etc."
           className="w-full border border-black/15 rounded-sm px-3 py-2 text-sm"
         />
       </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3">
         <div>
-          <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">City</label>
+          <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">
+            City <span className="text-hydra">*</span>
+          </label>
           <input
             ref={cityRef}
             name="city"
@@ -179,7 +237,7 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
         </div>
         <div>
           <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">
-            Postal Code
+            Postal Code <span className="text-hydra">*</span>
           </label>
           <input
             ref={postalCodeRef}
@@ -190,9 +248,9 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
           />
         </div>
       </div>
-      <div className="mb-6">
+      <div className="mb-5">
         <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">
-          Province
+          Province <span className="text-hydra">*</span>
         </label>
         <select
           ref={provinceRef}
@@ -212,7 +270,7 @@ export function CheckoutForm({ savedAddresses, hasTradeCredit }: Props) {
         </select>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-5">
         <label className="block font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">
           PO / Reference Number (optional)
         </label>
