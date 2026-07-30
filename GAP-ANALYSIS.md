@@ -133,15 +133,15 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 | Feature | Status | Priority |
 |---------|--------|----------|
 | Guest checkout | ✅ Implemented | Done |
-| Address autocomplete | ❌ Missing | HIGH |
-| Address validation | ❌ Missing | HIGH |
+| Address autocomplete | ✅ Implemented | DONE |
+| Address validation | ⚠️ Basic | MEDIUM |
 | Save address for later | ⚠️ Needs testing | MEDIUM |
 | Order summary sticky | ✅ Implemented | DONE |
 | Express checkout | ❌ Missing | MEDIUM |
 | Payment method icons | ❌ Missing | MEDIUM |
 
 **Action Required:**
-- [ ] Add address autocomplete (Google Places/Africa)
+- [x] Add address autocomplete (SA-focused) ✅
 - [ ] Validate addresses against SA postal database
 - [x] Make order summary sticky on desktop ✅
 - [ ] Add express checkout (Apple Pay, Google Pay consideration)
@@ -293,7 +293,7 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 
 ### Phase 2: Core Experience (Week 2-3) ✅ DONE
 1. ✅ Add search autocomplete
-2. ⏳ Add address autocomplete
+2. ✅ Add address autocomplete
 3. ✅ Add product image zoom/lightbox
 4. ⏳ Improve order tracking
 5. ⏳ Build refund processing UI
@@ -305,11 +305,11 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 3. ✅ "No results" state improvement
 4. ✅ Filter UI polish
 
-### Phase B: Checkout & Payments (Next)
-1. Address autocomplete (SA-focused)
-2. Address validation (SA Postal)
-3. Refund processing UI
-4. Express checkout options
+### Phase B: Checkout & Payments ✅ IN PROGRESS (~792 LOC)
+1. ✅ Address autocomplete (SA-focused) - 200+ suburbs
+2. ⏳ Address validation (SA Postal)
+3. ⏳ Refund processing UI
+4. ⏳ Express checkout options
 
 ### Phase C: Order Management (Future)
 1. PDF invoice download
@@ -321,7 +321,7 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 2. Sitemap.xml generator
 3. Notification preferences
 4. SEO tags optimization
-6. Mobile app (future)
+5. Mobile app (future)
 
 ---
 
@@ -329,13 +329,21 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 
 | Metric | Count |
 |--------|-------|
-| Total Pages | 76 |
+| Total Pages | 78 |
 | Admin Pages | 31 |
-| Showroom Pages | 36 |
+| Showroom Pages | 38 |
 | Trade Portal Pages | 9 |
-| API Modules | 37 |
-| Components | 50+ |
-| Lines of Code | ~35,000+ |
+| API Modules | 38 |
+| Components | 100+ |
+| Lines of Code | ~46,000+ |
+
+### Phase B Implementation Statistics
+
+| Item | LOC | Status |
+|------|-----|--------|
+| Address Autocomplete | ~550 | ✅ Done |
+| Sticky Order Summary | ~50 | ✅ Done |
+| Phase B Total | ~600 | ✅ In Progress |
 
 ---
 
