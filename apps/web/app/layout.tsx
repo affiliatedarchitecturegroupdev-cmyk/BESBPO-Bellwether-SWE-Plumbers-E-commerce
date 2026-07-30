@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter, IBM_Plex_Mono } from 'next/font/google';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CompareBar } from '@/components/commerce/CompareBar';
+import { CookieConsent } from '@/components/commerce/CookieConsent';
 import { Providers } from '@/components/Providers';
 import './globals.css';
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main>{children}</main>
           <Footer />
           <CompareBar />
+          <CookieConsent />
         </Providers>
       </body>
     </html>
