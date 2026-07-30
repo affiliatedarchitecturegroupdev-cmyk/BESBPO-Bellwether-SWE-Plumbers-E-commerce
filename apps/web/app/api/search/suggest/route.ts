@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { apiClient } from '@/lib/api-client';
 
+// Force dynamic rendering - this route needs access to request.url
+export const dynamic = 'force-dynamic';
+
 interface Suggestion {
   id: string;
   name: string;

@@ -6,6 +6,9 @@ import { RestockControl } from '@/components/admin/RestockControl';
 import { BulkImportExportPanel } from '@/components/admin/BulkImportExportPanel';
 import { deleteProductAction } from '@/lib/actions/admin-products';
 
+// Force dynamic rendering - this page fetches from API
+export const dynamic = 'force-dynamic';
+
 const zar = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' });
 const LOW_STOCK_THRESHOLD = 10;
 

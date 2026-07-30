@@ -4,6 +4,9 @@ import { createCategoryAction } from '@/lib/actions/admin-categories';
 import { SelectField, TextField } from '@/components/admin/FormFields';
 import { SubmitButton } from '@/components/admin/SubmitButton';
 
+// Force dynamic rendering - this page fetches from API
+export const dynamic = 'force-dynamic';
+
 export default async function NewCategoryPage() {
   const tree = await apiClient.get<CategoryTreeNode[]>('/v1/categories');
   const flat = flattenCategoryTree(tree);

@@ -4,6 +4,9 @@ import { CategoryTreeNode, flattenCategoryTree } from '@/lib/flatten-category-tr
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { deleteCategoryAction } from '@/lib/actions/admin-categories';
 
+// Force dynamic rendering - this page fetches from API
+export const dynamic = 'force-dynamic';
+
 export default async function AdminCategoriesPage() {
   const tree = await apiClient.get<CategoryTreeNode[]>('/v1/categories');
   const flat = flattenCategoryTree(tree);

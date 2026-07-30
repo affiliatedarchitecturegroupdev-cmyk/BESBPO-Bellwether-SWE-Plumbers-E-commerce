@@ -2,6 +2,9 @@ import { Metadata } from 'next';
 import { apiClient } from '@/lib/api-client';
 import { Paginated } from '@/lib/types';
 
+// Force dynamic rendering - this page fetches from API
+export const dynamic = 'force-dynamic';
+
 interface BundleSummary {
   slug: string;
   name: string;

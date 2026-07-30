@@ -3,6 +3,9 @@ import { apiClient } from '@/lib/api-client';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { deleteBundleAction } from '@/lib/actions/admin-bundles';
 
+// Force dynamic rendering - this page fetches from API
+export const dynamic = 'force-dynamic';
+
 interface BundleListItem {
   id: string;
   slug: string;
