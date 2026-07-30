@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client';
 import { PricedCart } from '@/lib/types';
 import { ADMIN_SCOPES } from '@/lib/admin-scopes';
 import { BrandMark } from './BrandMark';
+import { SearchAutocomplete } from '@/components/commerce/SearchAutocomplete';
 
 // Client component for interactive header with mobile menu
 export function Header() {
@@ -37,14 +38,10 @@ export function Header() {
             </span>
           </Link>
 
-          {/* Search - Desktop */}
-          <form action="/search" className="hidden md:flex flex-1 max-w-[460px] mx-4">
-            <input
-              name="q"
-              placeholder="Search 10,500+ products"
-              className="w-full bg-white/[0.08] border border-white/15 rounded-sm px-3.5 py-2 text-[13.5px] outline-none focus:border-cyan placeholder:text-steel"
-            />
-          </form>
+          {/* Search - Desktop with Autocomplete */}
+          <div className="hidden md:block flex-1 max-w-[460px] mx-4">
+            <SearchAutocomplete />
+          </div>
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-4 xl:gap-6 text-[13px]">
@@ -109,14 +106,10 @@ export function Header() {
           </button>
         </div>
 
-        {/* Mobile Search */}
-        <form action="/search" className="md:hidden pb-3">
-          <input
-            name="q"
-            placeholder="Search products..."
-            className="w-full bg-white/[0.08] border border-white/15 rounded-sm px-3.5 py-2 text-sm outline-none focus:border-cyan placeholder:text-steel"
-          />
-        </form>
+        {/* Mobile Search with Autocomplete */}
+        <div className="md:hidden pb-3">
+          <SearchAutocomplete />
+        </div>
       </div>
 
       {/* Mobile Menu */}
