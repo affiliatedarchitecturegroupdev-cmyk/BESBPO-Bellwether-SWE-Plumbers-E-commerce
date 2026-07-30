@@ -69,6 +69,24 @@ export default async function SignInPage() {
             </div>
           </div>
 
+          {/* Create Account Button */}
+          <Link
+            href="/register"
+            className="block w-full text-center border border-cyan text-cyan hover:bg-cyan hover:text-ink font-semibold py-3 px-4 rounded-sm transition-colors"
+          >
+            Create an Account
+          </Link>
+
+          {/* Divider with OR */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-ink-2 text-steel">or</span>
+            </div>
+          </div>
+
           {/* Guest Checkout */}
           <Link
             href="/checkout/guest"
@@ -76,6 +94,16 @@ export default async function SignInPage() {
           >
             Continue as Guest
           </Link>
+
+          {/* Forgot Password */}
+          <div className="mt-6 text-center">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-steel hover:text-cyan transition-colors"
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </div>
 
         {/* Benefits */}

@@ -1,0 +1,349 @@
+# Bellwether SWE Plumbers E-commerce Platform - Gap Analysis
+
+**Generated:** 2024-07-29  
+**Version:** 1.0  
+**Status:** Production-Ready Foundation with Gaps to Address
+
+---
+
+## Executive Summary
+
+The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with:
+- ✅ 76 pages across showroom, admin, and trade portals
+- ✅ 37 backend API modules (comprehensive business logic)
+- ✅ Authentication via Keycloak/NextAuth
+- ✅ Cart, checkout, orders, wishlist, returns
+- ✅ Admin dashboard with 31 pages
+- ✅ Trade account system with credit
+- ✅ Product reviews and Q&A
+- ✅ Coupons and price tiers
+- ✅ Bookings and recurring orders
+
+**However, there are critical gaps that need to be addressed for a world-class e-commerce experience.**
+
+---
+
+## 🔴 CRITICAL GAPS (Must Fix Before Launch)
+
+### 1. User Registration & Account Creation
+
+| Issue | Status | Priority |
+|-------|--------|----------|
+| No public registration page | ❌ Missing | CRITICAL |
+| No "Create Account" flow | ❌ Missing | CRITICAL |
+| No welcome email on signup | ❌ Missing | CRITICAL |
+| No email verification | ❌ Missing | HIGH |
+
+**Action Required:**
+- [ ] Create `/register` page for new account creation
+- [ ] Integrate with Keycloak for user registration
+- [ ] Add email verification flow
+- [ ] Create welcome email templates
+
+### 2. Password Reset / Forgot Password
+
+| Issue | Status | Priority |
+|-------|--------|----------|
+| No forgot password page | ❌ Missing | CRITICAL |
+| No password reset flow | ❌ Missing | CRITICAL |
+| No "Reset Password" email | ❌ Missing | HIGH |
+
+**Action Required:**
+- [ ] Create `/forgot-password` page
+- [ ] Create `/reset-password` page
+- [ ] Configure Keycloak password reset flow
+
+### 3. Mobile Responsiveness (Partial)
+
+| Component | Status | Priority |
+|-----------|--------|----------|
+| Header | ✅ Fixed | Done |
+| Footer | ✅ Fixed | Done |
+| Homepage | ✅ Fixed | Done |
+| Product Detail Page | ⚠️ Needs Review | HIGH |
+| Cart | ⚠️ Needs Review | HIGH |
+| Checkout | ⚠️ Needs Review | HIGH |
+| Admin Dashboard | ⚠️ Needs Review | MEDIUM |
+| All other pages | ❌ Not Done | MEDIUM |
+
+**Action Required:**
+- [ ] Audit and fix mobile responsiveness for all pages
+- [ ] Test on iOS Safari, Android Chrome
+- [ ] Touch-friendly interactions
+
+---
+
+## 🟡 IMPORTANT GAPS (Should Fix)
+
+### 4. Product Discovery & Search
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Basic search | ✅ Implemented | Done |
+| Category pages | ✅ Implemented | Done |
+| Filters (price, brand, etc.) | ⚠️ Needs UI polish | MEDIUM |
+| Search autocomplete | ❌ Missing | HIGH |
+| Search suggestions | ❌ Missing | MEDIUM |
+| Recent searches | ❌ Missing | LOW |
+| "No results" state | ⚠️ Needs improvement | MEDIUM |
+
+**Action Required:**
+- [ ] Add search autocomplete/typeahead
+- [ ] Improve filter UI
+- [ ] Add search history/suggestions
+
+### 5. Product Images & Media
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Image gallery | ✅ Implemented | Done |
+| Zoom on hover | ❌ Missing | HIGH |
+| Lightbox modal | ❌ Missing | MEDIUM |
+| 360° view | ❌ Missing | LOW |
+| Video support | ❌ Missing | LOW |
+| AR/VR try-on | ❌ Not applicable | - |
+
+**Action Required:**
+- [ ] Add product image zoom
+- [ ] Add lightbox modal for images
+- [ ] Consider video integration
+
+### 6. Checkout Experience
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Guest checkout | ✅ Implemented | Done |
+| Address autocomplete | ❌ Missing | HIGH |
+| Address validation | ❌ Missing | HIGH |
+| Save address for later | ⚠️ Needs testing | MEDIUM |
+| Order summary sticky | ❌ Missing | MEDIUM |
+| Express checkout | ❌ Missing | MEDIUM |
+| Payment method icons | ❌ Missing | MEDIUM |
+
+**Action Required:**
+- [ ] Add address autocomplete (Google Places/Africa)
+- [ ] Validate addresses against SA postal database
+- [ ] Make order summary sticky on desktop
+- [ ] Add express checkout (Apple Pay, Google Pay consideration)
+
+### 7. Payment Integration
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| PayFast integration | ✅ Implemented | Done |
+| Payment methods | ⚠️ Limited | MEDIUM |
+| Invoice/quote generation | ⚠️ Needs review | MEDIUM |
+| Payment webhooks | ⚠️ Needs testing | HIGH |
+| Refund processing | ❌ Missing UI | HIGH |
+
+**Action Required:**
+- [ ] Add more payment methods (EFT, Ozow)
+- [ ] Build refund processing UI
+- [ ] Test payment webhooks thoroughly
+
+### 8. Order Management
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Order history | ✅ Implemented | Done |
+| Order details | ✅ Implemented | Done |
+| Order tracking | ⚠️ Basic | MEDIUM |
+| Cancel order | ✅ Implemented | Done |
+| Modify order | ❌ Missing | HIGH |
+| Print invoice | ❌ Missing | HIGH |
+| Download invoice PDF | ❌ Missing | HIGH |
+
+**Action Required:**
+- [ ] Add detailed order tracking with carrier integration
+- [ ] Create PDF invoice generation
+- [ ] Allow order modifications (within timeframe)
+
+### 9. User Account Features
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Profile editing | ✅ Implemented | Done |
+| Change password | ❌ Missing | CRITICAL |
+| 2FA/MFA | ❌ Missing | HIGH |
+| Notification preferences | ❌ Missing | MEDIUM |
+| Delete account | ⚠️ Partial (POPIA) | MEDIUM |
+
+**Action Required:**
+- [ ] Add password change functionality
+- [ ] Add 2FA via Keycloak
+- [ ] Build notification preferences UI
+
+### 10. Wishlist Features
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Add to wishlist | ✅ Implemented | Done |
+| View wishlist | ✅ Implemented | Done |
+| Share wishlist | ❌ Missing | MEDIUM |
+| Wishlist alerts | ❌ Missing | MEDIUM |
+| Add wishlist to cart | ⚠️ Needs UI | MEDIUM |
+
+**Action Required:**
+- [ ] Add share wishlist functionality
+- [ ] Add price drop alerts
+- [ ] Improve "add all to cart" flow
+
+---
+
+## 🟢 NICE TO HAVE (Post-Launch)
+
+### 11. Advanced Commerce Features
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Product comparisons | ✅ Implemented | Done |
+| Recently viewed | ✅ Implemented | Done |
+| Bundle builder | ⚠️ Basic | MEDIUM |
+| Gift wrapping | ❌ Missing | LOW |
+| Loyalty/reward points | ❌ Missing | LOW |
+| Product recommendations | ❌ Missing | MEDIUM |
+| Back-in-stock notifications | ✅ Implemented | Done |
+| Abandoned cart recovery | ❌ Missing | MEDIUM |
+
+### 12. Social & Community
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Share products | ⚠️ Basic | LOW |
+| Social login | ❌ Missing | LOW |
+| Product reviews | ✅ Implemented | Done |
+| Q&A community | ✅ Implemented | Done |
+| Blog/content hub | ❌ Missing | LOW |
+| Installation guides | ❌ Missing | MEDIUM |
+
+### 13. Trade Portal Enhancements
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Trade account application | ✅ Implemented | Done |
+| Trade credit system | ✅ Implemented | Done |
+| Bulk ordering | ✅ Implemented | Done |
+| Quote requests | ✅ Implemented | Done |
+| Project management | ❌ Missing | MEDIUM |
+| Standing orders | ⚠️ Basic | MEDIUM |
+| Quick reorder | ❌ Missing | HIGH |
+
+### 14. Admin Dashboard Enhancements
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Dashboard overview | ✅ Implemented | Done |
+| Product management | ✅ Implemented | Done |
+| Order management | ✅ Implemented | Done |
+| Customer management | ✅ Implemented | Done |
+| Analytics/Reports | ⚠️ Basic | MEDIUM |
+| Inventory alerts | ❌ Missing | HIGH |
+| Bulk product import | ❌ Missing | HIGH |
+| Automated emails | ❌ Missing | MEDIUM |
+
+### 15. SEO & Performance
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Meta tags | ⚠️ Partial | MEDIUM |
+| Sitemap | ❌ Missing | HIGH |
+| Structured data | ⚠️ Partial | MEDIUM |
+| Image optimization | ❌ Needs review | MEDIUM |
+| Lazy loading | ⚠️ Partial | MEDIUM |
+| Core Web Vitals | ⚠️ Needs audit | HIGH |
+
+### 16. Internationalization (Future)
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Multi-language | ❌ Not needed (SA focused) | - |
+| Currency (ZAR) | ✅ Implemented | Done |
+| VAT/Tax handling | ⚠️ Needs review | HIGH |
+
+---
+
+## 📋 Implementation Roadmap
+
+### Phase 1: Launch Blockers (Week 1)
+1. ✅ Create `/register` page
+2. ✅ Create `/forgot-password` and `/reset-password` pages
+3. ✅ Add password change in account settings
+4. ✅ Add PDF invoice generation
+5. ✅ Mobile responsiveness audit & fix
+
+### Phase 2: Core Experience (Week 2-3)
+1. Add search autocomplete
+2. Add address autocomplete
+3. Add product image zoom/lightbox
+4. Improve order tracking
+5. Build refund processing UI
+6. Add notification preferences
+
+### Phase 3: Polish (Week 4)
+1. Add express checkout options
+2. Improve filter UI
+3. Add sitemap.xml
+4. Add Core Web Vitals optimization
+5. Test payment webhooks
+6. Email template review
+
+### Phase 4: Post-Launch (Ongoing)
+1. Product recommendations
+2. Abandoned cart recovery
+3. Loyalty/reward points
+4. Blog/content hub
+5. Advanced analytics
+6. Mobile app (future)
+
+---
+
+## 📊 Current Code Statistics
+
+| Metric | Count |
+|--------|-------|
+| Total Pages | 76 |
+| Admin Pages | 31 |
+| Showroom Pages | 36 |
+| Trade Portal Pages | 9 |
+| API Modules | 37 |
+| Components | 50+ |
+| Lines of Code | ~35,000+ |
+
+---
+
+## 🧪 Testing Checklist
+
+Before launch, ensure testing:
+
+- [ ] User registration flow
+- [ ] Login/logout flow
+- [ ] Password reset flow
+- [ ] Product browsing (mobile & desktop)
+- [ ] Add to cart flow
+- [ ] Checkout flow (guest & logged in)
+- [ ] Payment processing (PayFast sandbox)
+- [ ] Order confirmation emails
+- [ ] Order history & tracking
+- [ ] Return/refund flow
+- [ ] Wishlist functionality
+- [ ] Review/Q&A submission
+- [ ] Trade account application
+- [ ] Admin CRUD operations
+- [ ] Mobile responsiveness
+- [ ] Browser compatibility (Chrome, Firefox, Safari, Edge)
+- [ ] Performance (PageSpeed insights)
+- [ ] Security (OWASP checklist)
+
+---
+
+## 📝 Notes
+
+- **Authentication:** Uses Keycloak via NextAuth - ensure Keycloak is properly configured
+- **Payments:** PayFast sandbox mode should be used until live credentials are configured
+- **Database:** PostgreSQL with Prisma ORM
+- **Hosting:** Render.com configured with web and API services
+- **Monitoring:** Sentry configured but requires DSN for production
+
+---
+
+*Document created for Bellwether SWE Plumbers E-commerce Platform*

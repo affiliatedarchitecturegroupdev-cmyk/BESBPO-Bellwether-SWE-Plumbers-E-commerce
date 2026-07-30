@@ -176,6 +176,13 @@ export function Header() {
                   Sign in
                 </Link>
                 <Link
+                  href="/register"
+                  className="block py-2 text-cyan hover:text-porcelain transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Create Account
+                </Link>
+                <Link
                   href="/checkout/guest"
                   className="block py-2 hover:text-cyan transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
