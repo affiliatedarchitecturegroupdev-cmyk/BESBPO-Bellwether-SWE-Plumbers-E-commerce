@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { Address, PricedCart } from '@/lib/types';
 import { CheckoutForm } from '@/components/commerce/CheckoutForm';
+import { ExpressCheckoutPanel } from '@/components/commerce/ExpressCheckout';
 
 const zar = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' });
 
@@ -37,6 +38,15 @@ export default async function CheckoutPage() {
           .
         </p>
       )}
+      
+      {/* Express Checkout Panel - Quick address selection */}
+      {savedAddresses.length > 0 && (
+        <ExpressCheckoutPanel 
+          savedAddresses={savedAddresses} 
+          hasTradeCredit={hasTradeCredit} 
+        />
+      )}
+      
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.8fr] gap-6 lg:gap-10 xl:gap-14">
         <div>
           <CheckoutForm savedAddresses={savedAddresses} hasTradeCredit={hasTradeCredit} />

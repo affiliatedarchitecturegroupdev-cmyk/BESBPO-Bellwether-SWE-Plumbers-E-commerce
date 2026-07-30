@@ -154,11 +154,11 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 | Payment methods | ⚠️ Limited | MEDIUM |
 | Invoice/quote generation | ⚠️ Needs review | MEDIUM |
 | Payment webhooks | ⚠️ Needs testing | HIGH |
-| Refund processing | ❌ Missing UI | HIGH |
+| Refund processing | ✅ UI Implemented | DONE |
 
 **Action Required:**
 - [ ] Add more payment methods (EFT, Ozow)
-- [ ] Build refund processing UI
+- [x] Build refund processing UI ✅
 - [ ] Test payment webhooks thoroughly
 
 ### 8. Order Management
@@ -305,10 +305,10 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 3. ✅ "No results" state improvement
 4. ✅ Filter UI polish
 
-### Phase B: Checkout & Payments ✅ IN PROGRESS (~792 LOC)
+### Phase B: Checkout & Payments ✅ IN PROGRESS (~1150 LOC)
 1. ✅ Address autocomplete (SA-focused) - 200+ suburbs
 2. ⏳ Address validation (SA Postal)
-3. ⏳ Refund processing UI
+3. ✅ Refund processing UI
 4. ⏳ Express checkout options
 
 ### Phase C: Order Management (Future)
@@ -342,8 +342,9 @@ The Bellwether SWE Plumbers e-commerce platform has a **strong foundation** with
 | Item | LOC | Status |
 |------|-----|--------|
 | Address Autocomplete | ~550 | ✅ Done |
+| Refund Processing UI | ~350 | ✅ Done |
 | Sticky Order Summary | ~50 | ✅ Done |
-| Phase B Total | ~600 | ✅ In Progress |
+| Phase B Total | ~950 | ✅ In Progress |
 
 ---
 
