@@ -5,7 +5,7 @@ import { apiClient, ApiError } from '@/lib/api-client';
 import { CancelOrderButton } from '@/components/commerce/CancelOrderButton';
 import { AmendAddressPanel } from '@/components/commerce/AmendAddressPanel';
 import { RequestReturnForm } from '@/components/commerce/RequestReturnForm';
-import { resolveTrackingUrl } from '@/lib/courier';
+import { OrderTrackingCard, OrderStatusTimeline } from '@/components/commerce/OrderTracking';
 
 interface OrderDetail {
   id: string;
@@ -23,6 +23,7 @@ interface OrderDetail {
   shippingAddress: { line1: string; line2?: string; city: string; province: string; postalCode: string };
   lineItems: { id: string; productName: string; quantity: number; unitPrice: string; lineTotal: string }[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 const CANCELLABLE_STATUSES = ['PENDING', 'CONFIRMED'];
@@ -46,8 +47,6 @@ export default async function OrderDetailPage({ params }: Props) {
 
   const order = await fetchOrder(params.id, session.accessToken);
   if (!order) notFound();
-
-  const trackingLink = resolveTrackingUrl(order.courierName, order.trackingUrl);
 
   return (
     <div className="max-w-[700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
@@ -87,21 +86,22 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       )}
 
-      {order.trackingNumber && (
-        <div className="border border-black/10 rounded-sm p-4 mb-6">
-          <p className="font-mono text-[10.5px] uppercase tracking-wide text-steel mb-1.5">Tracking</p>
-          <p className="text-sm">
-            {order.courierName && <span className="font-medium">{order.courierName}</span>}
-            {order.courierName && ' — '}
-            {order.trackingNumber}
-          </p>
-          {trackingLink && (
-            <a href={trackingLink} target="_blank" rel="noreferrer" className="text-[13px] text-hydra hover:underline">
-              Track this delivery →
-            </a>
-          )}
+      {/* Enhanced Order Tracking */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <OrderTrackingCard
+          courierName={order.courierName}
+          trackingNumber={order.trackingNumber}
+          trackingUrl={order.trackingUrl}
+          orderNumber={order.orderNumber}
+        />
+        <div className="border border-black/10 rounded-sm p-4">
+          <OrderStatusTimeline
+            currentStatus={order.status}
+            statuses={[]}
+            currentDate={order.updatedAt ? new Date(order.updatedAt).toLocaleDateString('en-ZA') : undefined}
+          />
         </div>
-      )}
+      </div>
 
       <h2 className="text-base font-semibold mb-3">Items</h2>
       <ul className="mb-6">

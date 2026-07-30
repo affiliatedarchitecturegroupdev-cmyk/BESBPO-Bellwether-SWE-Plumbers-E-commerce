@@ -15,6 +15,10 @@ interface TrackedOrder {
   total: string;
   createdAt: string;
   lineItems: TrackedOrderLineItem[];
+  // Optional tracking fields (may not be available for all orders)
+  courierName?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
 }
 
 export interface TrackOrderResult {
