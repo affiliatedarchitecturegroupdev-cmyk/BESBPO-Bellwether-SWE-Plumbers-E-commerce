@@ -26,10 +26,10 @@ export default async function CheckoutPage() {
   const deliveryEstimate = await getDeliveryEstimate(savedAddresses, session.accessToken);
 
   return (
-    <div className="max-w-[1000px] mx-auto px-8 py-10">
-      <h1 className="font-display text-2xl font-bold mb-2">Checkout</h1>
+    <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
+      <h1 className="font-display text-xl sm:text-2xl font-bold mb-2">Checkout</h1>
       {hasTradeCredit && (
-        <p className="text-[13px] text-steel mb-6">
+        <p className="text-[13px] text-steel mb-4 sm:mb-6">
           Ordering for more than one job site?{' '}
           <a href="/checkout/split" className="text-hydra">
             Split this order across two delivery addresses
@@ -37,9 +37,13 @@ export default async function CheckoutPage() {
           .
         </p>
       )}
-      <div className="grid grid-cols-[1fr_0.8fr] gap-14">
-        <CheckoutForm savedAddresses={savedAddresses} hasTradeCredit={hasTradeCredit} />
-        <CartRecap cart={cart} deliveryEstimate={deliveryEstimate} />
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.8fr] gap-6 lg:gap-10 xl:gap-14">
+        <div>
+          <CheckoutForm savedAddresses={savedAddresses} hasTradeCredit={hasTradeCredit} />
+        </div>
+        <div className="lg:sticky lg:top-24 lg:self-start order-first lg:order-last mb-6 lg:mb-0">
+          <CartRecap cart={cart} deliveryEstimate={deliveryEstimate} />
+        </div>
       </div>
     </div>
   );
@@ -87,15 +91,15 @@ function CartRecap({ cart, deliveryEstimate }: { cart: PricedCart; deliveryEstim
   const total = cart.total + (deliveryEstimate ?? 0);
 
   return (
-    <div className="border border-black/10 rounded-sm p-6 h-fit">
-      <h2 className="text-base font-semibold mb-4">Order Summary</h2>
-      <ul className="mb-4">
+    <div className="border border-black/10 rounded-sm p-4 sm:p-6 bg-white lg:bg-transparent">
+      <h2 className="text-base font-semibold mb-3 sm:mb-4">Order Summary</h2>
+      <ul className="mb-4 max-h-[200px] overflow-y-auto">
         {cart.lines.map((line) => (
           <li key={line.cartItemId} className="flex justify-between text-[13.5px] py-1.5">
-            <span className="text-[#4A5157]">
+            <span className="text-[#4A5157] truncate mr-2">
               {line.quantity}× {line.name}
             </span>
-            <span className="font-mono">{zar.format(line.lineTotal)}</span>
+            <span className="font-mono flex-shrink-0">{zar.format(line.lineTotal)}</span>
           </li>
         ))}
       </ul>

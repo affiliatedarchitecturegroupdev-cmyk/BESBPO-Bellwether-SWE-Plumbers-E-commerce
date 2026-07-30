@@ -21,19 +21,21 @@ export default async function CartPage() {
   const cart = await apiClient.get<PricedCart>('/v1/cart', { accessToken: session.accessToken });
 
   return (
-    <div className="max-w-[1100px] mx-auto px-8 py-10">
-      <h1 className="font-display text-2xl font-bold mb-8">Your Cart ({cart.lines.length} items)</h1>
+    <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
+      <h1 className="font-display text-xl sm:text-2xl font-bold mb-6 lg:mb-8">Your Cart ({cart.lines.length} items)</h1>
 
       {cart.lines.length === 0 ? (
         <EmptyCart />
       ) : (
-        <div className="grid grid-cols-[1.6fr_1fr] gap-14">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-10 xl:gap-14">
           <div>
             {cart.lines.map((line) => (
               <CartLineRow key={line.cartItemId} line={line} />
             ))}
           </div>
-          <OrderSummary cart={cart} />
+          <div className="lg:sticky lg:top-24 lg:self-start">
+            <OrderSummary cart={cart} />
+          </div>
         </div>
       )}
     </div>
@@ -53,14 +55,14 @@ function EmptyCart() {
 
 function OrderSummary({ cart }: { cart: PricedCart }) {
   return (
-    <div className="border border-black/10 rounded-sm p-6 h-fit">
+    <div className="border border-black/10 rounded-sm p-4 sm:p-6 bg-white lg:bg-transparent">
       {cart.usingTradePricing && (
-        <div className="bg-[#EAF3F8] border border-[#CFE3ED] text-hydra text-[12.5px] rounded-sm px-4 py-3 mb-5">
+        <div className="bg-[#EAF3F8] border border-[#CFE3ED] text-hydra text-[12.5px] rounded-sm px-3 sm:px-4 py-2 sm:py-3 mb-4 sm:mb-5">
           Trade account detected — trade pricing applied.
         </div>
       )}
 
-      <h2 className="text-base font-semibold mb-4">Order Summary</h2>
+      <h2 className="text-base font-semibold mb-3 sm:mb-4">Order Summary</h2>
 
       <CouponForm couponCode={cart.couponCode} couponError={cart.couponError} />
 
@@ -79,12 +81,12 @@ function OrderSummary({ cart }: { cart: PricedCart }) {
         <span>{zar.format(cart.vatAmount)}</span>
       </div>
       <p className="text-[11.5px] text-steel py-1">Delivery calculated at checkout.</p>
-      <div className="flex justify-between font-semibold text-[15px] border-t border-black/10 mt-2 pt-4 mb-5">
+      <div className="flex justify-between font-semibold text-[15px] border-t border-black/10 mt-2 pt-4 mb-4 sm:mb-5">
         <span>Total</span>
         <span>{zar.format(cart.total)}</span>
       </div>
 
-      <ButtonLink href="/checkout" variant="primary" className="w-full justify-center">
+      <ButtonLink href="/checkout" variant="primary" className="w-full justify-center text-sm sm:text-base py-3">
         Proceed to Checkout
       </ButtonLink>
     </div>
