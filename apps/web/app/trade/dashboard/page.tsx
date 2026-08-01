@@ -54,6 +54,53 @@ export default async function TradeDashboardPage() {
         </p>
       )}
 
+      {/* Quick Actions */}
+      <div className="mb-8">
+        <h2 className="text-base font-semibold mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <QuickActionCard
+            href="/trade/quick-order"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            }
+            title="Quick Reorder"
+            description="Reorder from past orders"
+          />
+          <QuickActionCard
+            href="/trade/recurring-orders"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+            title="Standing Orders"
+            description="Manage recurring orders"
+          />
+          <QuickActionCard
+            href="/trade/bulk-order"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+            }
+            title="Bulk Order"
+            description="Order multiple products"
+          />
+          <QuickActionCard
+            href="/trade/quotes/new"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
+            title="Request Quote"
+            description="Get a custom quote"
+          />
+        </div>
+      </div>
+
       <div className="flex justify-between items-baseline mb-4">
         <h2 className="text-base font-semibold">Recent Orders</h2>
         <Link href="/account/orders" className="font-mono text-[11px] text-hydra">
@@ -91,6 +138,29 @@ function StatBox({ value, label }: { value: string; label: string }) {
       <div className="font-display text-2xl font-bold text-hydra">{value}</div>
       <div className="font-mono text-[10px] uppercase tracking-wide text-steel mt-1">{label}</div>
     </div>
+  );
+}
+
+function QuickActionCard({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="bg-white border border-black/10 rounded-sm p-4 hover:border-hydra hover:text-hydra transition-colors group"
+    >
+      <div className="text-steel group-hover:text-hydra mb-2">{icon}</div>
+      <p className="font-semibold text-sm mb-0.5">{title}</p>
+      <p className="font-mono text-[10px] text-steel">{description}</p>
+    </Link>
   );
 }
 
